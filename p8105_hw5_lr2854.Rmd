@@ -60,9 +60,7 @@ bmore_summary
 
 For the city of Baltimore, MD, the estimated proportion is `r round(pull(bmore_prop_test, estimate),3)` (95% confidence interval [`r round(pull(bmore_prop_test, conf.low),3)`, `r round(pull(bmore_prop_test, conf.high),3)`])
 
-
-
-Now run prop.test for each of the cities in your dataset, and extract both the proportion of unsolved homicides and the confidence interval for each. Do this within a “tidy” pipeline, making use of purrr::map, purrr::map2, list columns and unnest as necessary to create a tidy dataframe with estimated proportions and CIs for each city.
+Doing this for all of the cities as follows:
 
 ```{r city_prop_test}
 
@@ -74,20 +72,65 @@ homicide_df = homicide_df %>%
   ) %>% 
   select(city_state, n_unsolved, total_homicides, tidy_results) %>% 
   unnest(tidy_results) %>% 
-  select(city_state, n_unsolved, total_homicides, estimate, conf.low, conf.high) %>%
+  select(city_state, n_unsolved, total_homicides, estimate, conf.low, conf.high) %>% 
+  mutate(estimate = round(estimate, 3),
+         conf.low = round(conf.low,3),
+         conf.high = round(conf.high,3)) %>%
   janitor::clean_names("snake")
 
-homicide_df
+knitr::kable(homicide_df)
 ```
 
-Cities shown with estimated proportion of unsolved homicides (95% confidence interval).
+Cities shown with estimated proportion of unsolved homicides (95% confidence interval). Tulsa, AL appears to be an outlier and is included for completeness.
 
 ```{r city_estimates}
 homicide_df %>% 
   ungroup() %>%
   mutate(city_state = fct_reorder(city_state, desc(estimate))) %>%
-  ggplot(aes(x = city_state, y = estimate)) +
+  mutate(state = str_sub(city_state, start = -2, end = -1)) %>%
+  ggplot(aes(x = city_state, y = estimate, color = state)) +
   geom_point() + 
   geom_errorbar(aes(ymin = conf_low, ymax = conf_high)) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 ```
+
+## Problem 2
+
+The original data from the longitudinal study was tidied by combining each individual participant's data into one large dataframe.
+
+```{r long_study}
+file_names = c(files = list.files("data/study_data/"))
+
+read_multi_csv = function(csv_list) {
+  data_df = tibble(
+    subject_id = substr(csv_list, 1, 6), 
+    study_arm = substr(csv_list, 1, 3), 
+    read_csv(str_c("data/study_data/", csv_list), show_col_types = FALSE))
+  return(data_df)
+}
+
+study_data = map_dfr(file_names, read_multi_csv) %>% 
+  mutate(
+    study_arm = ifelse(study_arm == "con", "control", "experimental")
+  ) %>%
+  select(study_arm, everything())
+
+knitr:::kable(study_data)
+```
+
+A spaghetti plot showing observations for each subject over time reveals a trend that the experimental group, but not the control group, sees a rise in the study value over time.
+
+```{r study_trends}
+study_data %>% 
+  pivot_longer(week_1:week_8, names_to = "week", 
+    names_prefix = "week_") %>%
+  ggplot(aes(x = week, y = value)) +
+  geom_line(aes(group = subject_id, color = study_arm)) + 
+  labs(
+    title = "Study Measurements over Time", 
+    y = "Value",
+    x = "Week", 
+    color = "Arm"
+  ) 
+```
+
