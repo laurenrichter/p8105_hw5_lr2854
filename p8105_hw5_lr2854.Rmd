@@ -7,14 +7,14 @@ output: github_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = TRUE, collapse = TRUE) #add collapse = TRUE to not show everything
+knitr::opts_chunk$set(echo = TRUE, warning = TRUE, collapse = TRUE)
 
 library(tidyverse)
 library(readxl)
 ```
 
 
-```{r import_data}
+```{r import_data, echo = FALSE}
 homicide_data = read_csv("data/homicide-data.csv") %>%
   janitor::clean_names("snake") %>%
   mutate(city_state = paste(city,state,sep =", "))
@@ -36,7 +36,20 @@ head(unsolved)
 ```
 The raw data includes `r nrow(homicide_data)` observations of `r ncol(homicide_data) -1 ` variables for homicides in the 50 largest US cities (by population in 2012). Each record includes information about the victim, the date of the report, the location of the homicide, and the disposition of the case (whether an arrest was made). The named variables are `r colnames(homicide_data)`. More information about the data is available from the original data source, [here](https://github.com/washingtonpost/data-homicides).
 
-----
+```{r prop_test_bmore}
+
+bmore_prop_test = prop.test(subset(unsolved, city_state == "Baltimore, MD")$n_unsolved,
+          subset(unsolved, city_state == "Baltimore, MD")$total_homicides) %>%
+  broom::tidy()
+
+pull(bmore_prop_test, estimate)
+pull(bmore_prop_test, conf.low)
+pull(bmore_prop_test, conf.high)
+
+```
+
+For the city of Baltimore, MD, the estimated proportion is `r round(pull(bmore_prop_test, estimate),3)` (95% confidence interval [`r round(pull(bmore_prop_test, conf.low),3)`, `r round(pull(bmore_prop_test, conf.high),3)`])
+
 
 
 For the city of Baltimore, MD, use the prop.test function to estimate the proportion of homicides that are unsolved; save the output of prop.test as an R object, apply the broom::tidy to this object and pull the estimated proportion and confidence intervals from the resulting tidy dataframe.
