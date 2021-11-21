@@ -78,7 +78,7 @@ homicide_df = homicide_df %>%
          conf.high = round(conf.high,3)) %>%
   janitor::clean_names("snake")
 
-knitr::kable(homicide_df)
+homicide_df
 ```
 
 Cities shown with estimated proportion of unsolved homicides (95% confidence interval). Tulsa, AL appears to be an outlier and is included for completeness.
@@ -133,4 +133,43 @@ study_data %>%
     color = "Arm"
   ) 
 ```
+
+
+
+## Problem 3
+
+Creating an iris dataset with missing data. The code below will replace 20 random observations with NA values.
+
+```{r missing_iris}
+library(tidyverse)
+set.seed(10)
+iris_with_missing = iris %>% 
+  map_df(~replace(.x, sample(1:150, 20), NA)) %>%
+  mutate(Species = as.character(Species))
+```
+
+The function below takes a variable vector as an argument and replaces the missing values as follows:
+- Filling in the missing numeric variables with the mean of the non-missing values.
+- Filling in missing character variables with "virginica"
+
+There were `r sum(is.na(iris_with_missing))` missing values in the `iris_with_missing` dataset, of which `r sum(is.na(pull(iris_with_missing, Species)))` were character variables. This corresponds to 20 missing observations (5 variables).
+
+```{r find_iris}
+replace_na = function(var_vec) {
+  if (is.numeric(var_vec)) {
+    var_vec = ifelse(is.na(var_vec), 
+                     round(mean(var_vec, na.rm = TRUE), 3), 
+                     round(var_vec, 3))
+  }
+  else if (is.character(var_vec)) {
+    var_vec = ifelse(is.na(var_vec), 
+                     "virginica", 
+                     var_vec)
+  }
+  return(var_vec)
+}
+
+found_iris = map_df(iris_with_missing, replace_na)
+```
+
 
