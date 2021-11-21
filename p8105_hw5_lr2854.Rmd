@@ -1,0 +1,47 @@
+---
+title: "HW5"
+author: "Lauren Richter"
+date: "2021-11-20"
+link: "https://www.p8105.com/homework_5.html"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = TRUE, collapse = TRUE) #add collapse = TRUE to not show everything
+
+library(tidyverse)
+library(readxl)
+```
+
+
+```{r import_data}
+homicide_data = read_csv("data/homicide-data.csv") %>%
+  janitor::clean_names("snake") %>%
+  mutate(city_state = paste(city,state,sep =", "))
+
+unsolved = homicide_data %>%
+  group_by(city_state, disposition) %>%
+  summarize(city_state, disposition, n_count = n()) %>%
+  distinct() %>%
+  pivot_wider(names_from = disposition, values_from = n_count) %>%
+  janitor::clean_names('snake') %>%
+  mutate(
+    total_homicides = sum(closed_without_arrest, open_no_arrest, closed_by_arrest),
+    n_unsolved = sum(closed_without_arrest, open_no_arrest),
+    ) %>%
+  select(city_state, total_homicides, n_unsolved)
+
+head(unsolved)
+
+```
+The raw data includes `r nrow(homicide_data)` observations of `r ncol(homicide_data) -1 ` variables for homicides in the 50 largest US cities (by population in 2012). Each record includes information about the victim, the date of the report, the location of the homicide, and the disposition of the case (whether an arrest was made). The named variables are `r colnames(homicide_data)`. More information about the data is available from the original data source, [here](https://github.com/washingtonpost/data-homicides).
+
+----
+
+
+For the city of Baltimore, MD, use the prop.test function to estimate the proportion of homicides that are unsolved; save the output of prop.test as an R object, apply the broom::tidy to this object and pull the estimated proportion and confidence intervals from the resulting tidy dataframe.
+
+Now run prop.test for each of the cities in your dataset, and extract both the proportion of unsolved homicides and the confidence interval for each. Do this within a “tidy” pipeline, making use of purrr::map, purrr::map2, list columns and unnest as necessary to create a tidy dataframe with estimated proportions and CIs for each city.
+
+Create a plot that shows the estimates and CIs for each city – check out geom_errorbar for a way to add error bars based on the upper and lower limits. Organize cities according to the proportion of unsolved homicides.
+
