@@ -13,48 +13,81 @@ library(tidyverse)
 library(readxl)
 ```
 
+## Problem 1
 
 ```{r import_data, echo = FALSE}
 homicide_data = read_csv("data/homicide-data.csv") %>%
-  janitor::clean_names("snake") %>%
-  mutate(city_state = paste(city,state,sep =", "))
+  janitor::clean_names("snake")
 
-unsolved = homicide_data %>%
+homicide_df = homicide_data %>%
+  mutate(city_state = factor(paste(city,state,sep =", "))) %>%
   group_by(city_state, disposition) %>%
   summarize(city_state, disposition, n_count = n()) %>%
   distinct() %>%
   pivot_wider(names_from = disposition, values_from = n_count) %>%
   janitor::clean_names('snake') %>%
   mutate(
-    total_homicides = sum(closed_without_arrest, open_no_arrest, closed_by_arrest),
-    n_unsolved = sum(closed_without_arrest, open_no_arrest),
+    total_homicides = sum(closed_without_arrest, open_no_arrest, closed_by_arrest, na.rm = TRUE),
+    n_unsolved = sum(closed_without_arrest, open_no_arrest, na.rm = TRUE),
     ) %>%
-  select(city_state, total_homicides, n_unsolved)
+  select(city_state, n_unsolved, total_homicides)
 
-head(unsolved)
+head(homicide_df)
 
 ```
-The raw data includes `r nrow(homicide_data)` observations of `r ncol(homicide_data) -1 ` variables for homicides in the 50 largest US cities (by population in 2012). Each record includes information about the victim, the date of the report, the location of the homicide, and the disposition of the case (whether an arrest was made). The named variables are `r colnames(homicide_data)`. More information about the data is available from the original data source, [here](https://github.com/washingtonpost/data-homicides).
+The raw data includes `r nrow(homicide_data)` observations of `r ncol(homicide_data)` variables for homicides in the 50 largest US cities (by population in 2012). Each record includes information about the victim, the date of the report, the location of the homicide, and the disposition of the case (whether an arrest was made). The named variables are `r colnames(homicide_data)`. More information about the data is available from the original data source, [here](https://github.com/washingtonpost/data-homicides).
 
-```{r prop_test_bmore}
+```{r prop_test_bmore, echo = FALSE}
 
-bmore_prop_test = prop.test(subset(unsolved, city_state == "Baltimore, MD")$n_unsolved,
-          subset(unsolved, city_state == "Baltimore, MD")$total_homicides) %>%
+bmore_unsolved = subset(homicide_df, city_state == "Baltimore, MD") %>% pull (n_unsolved)
+bmore_total = subset(homicide_df, city_state == "Baltimore, MD") %>% pull(total_homicides)
+
+bmore_prop_test = prop.test(bmore_unsolved,
+          bmore_total) %>%
   broom::tidy()
 
-pull(bmore_prop_test, estimate)
-pull(bmore_prop_test, conf.low)
-pull(bmore_prop_test, conf.high)
+bmore_summary = tibble(
+  city_state = "Baltimore, MD",
+  n_unsolved = bmore_unsolved,
+  total_homicides = bmore_total,
+  estimate = pull(bmore_prop_test, estimate),
+  conf_low = pull(bmore_prop_test, conf.low),
+  conf_high = pull(bmore_prop_test, conf.high)
+)
 
+bmore_summary
 ```
 
 For the city of Baltimore, MD, the estimated proportion is `r round(pull(bmore_prop_test, estimate),3)` (95% confidence interval [`r round(pull(bmore_prop_test, conf.low),3)`, `r round(pull(bmore_prop_test, conf.high),3)`])
 
 
 
-For the city of Baltimore, MD, use the prop.test function to estimate the proportion of homicides that are unsolved; save the output of prop.test as an R object, apply the broom::tidy to this object and pull the estimated proportion and confidence intervals from the resulting tidy dataframe.
-
 Now run prop.test for each of the cities in your dataset, and extract both the proportion of unsolved homicides and the confidence interval for each. Do this within a “tidy” pipeline, making use of purrr::map, purrr::map2, list columns and unnest as necessary to create a tidy dataframe with estimated proportions and CIs for each city.
 
-Create a plot that shows the estimates and CIs for each city – check out geom_errorbar for a way to add error bars based on the upper and lower limits. Organize cities according to the proportion of unsolved homicides.
+```{r city_prop_test}
 
+homicide_df = homicide_df %>% 
+  group_by(city_state) %>% 
+  mutate(
+    test_results = map2(n_unsolved, total_homicides, prop.test),
+    tidy_results = map(test_results, broom::tidy)
+  ) %>% 
+  select(city_state, n_unsolved, total_homicides, tidy_results) %>% 
+  unnest(tidy_results) %>% 
+  select(city_state, n_unsolved, total_homicides, estimate, conf.low, conf.high) %>%
+  janitor::clean_names("snake")
+
+homicide_df
+```
+
+Cities shown with estimated proportion of unsolved homicides (95% confidence interval).
+
+```{r city_estimates}
+homicide_df %>% 
+  ungroup() %>%
+  mutate(city_state = fct_reorder(city_state, desc(estimate))) %>%
+  ggplot(aes(x = city_state, y = estimate)) +
+  geom_point() + 
+  geom_errorbar(aes(ymin = conf_low, ymax = conf_high)) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+```
